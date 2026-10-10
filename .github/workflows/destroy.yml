@@ -26,7 +26,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Execute destroy script
-        run: bash ./destroy.sh
+        run: bash ./scripts/destroy.sh
 
       - name: Delete ECS service
         run: |
