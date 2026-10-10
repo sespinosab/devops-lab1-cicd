@@ -1,0 +1,49 @@
+```yaml
+name: Destroy FastAPI Infrastructure
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  STUDENT_SUFFIX: ${{ inputs.student_suffix || vars.STUDENT_SUFFIX ||'test-student' }}
+  ECR_REPOSITORY: greeting-${{ inputs.student_suffix || vars.STUDENT_SUFFIX|| 'test-student' }}
+
+jobs:
+  destroy:
+    name: Destroy ECS Service and ECR Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Execute destroy script
+        run: bash ./destroy.sh
+
+      - name: Delete ECS service
+        run: |
+          aws ecs delete-service \
+            --cluster "greeting-${STUDENT_SUFFIX}" \
+            --service "greeting-${STUDENT_SUFFIX}" \
+            --force
+
+      - name: Wait for ECS service deletion
+        run: |
+          aws ecs wait services-inactive \
+            --cluster "greeting-${STUDENT_SUFFIX}" \
+            --services "greeting-${STUDENT_SUFFIX}"
+
+      - name: Delete ECR image
+        run: |
+          aws ecr batch-delete-image \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag=latest
+
