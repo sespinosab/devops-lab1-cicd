@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "greeting-app"
+version = "0.2.0"
+description = "A FastAPI application that accepts a first name and last name, and returns a personalized greeting."
+authors = ["Luis Carlos Rodriguez <luis.carlos.rb97@gmail.com>"]
+readme = "README.md"
+license = "UNAL"
+packages = [
+    { include = "main.py", from = "src"}
+]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.0"
+uvicorn = {extras = ["standard"], version = "^0.32.0"}
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pylint (>=4.0.5,<5.0.0)",
+    "pytest (>=9.0.3,<10.0.0)",
+    "httpx (>=0.28.0,<1.0.0)"
+]
+
+[tool.pylint.messages_control]
+disable = ["R0801"]

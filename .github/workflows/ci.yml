@@ -1,0 +1,96 @@
+name: CI/CD Pipeline (Lab 1)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      student_suffix:
+        description: 'Student Suffix (e.g. test-student)'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  STUDENT_SUFFIX: ${{ inputs.student_suffix || vars.STUDENT_SUFFIX ||'test-student' }}
+  ECR_REPOSITORY: greeting-${{ inputs.student_suffix || vars.STUDENT_SUFFIX|| 'test-student' }}
+
+jobs:
+  lint:
+    name: Lint (Pylint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install poetry && poetry install
+      - run: poetry run pylint src
+
+  test:
+    name: Unit Tests (Pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install poetry && poetry install
+      - run: poetry run pytest tests -vv
+
+  build_and_push:
+    name: Build & Push Container Image
+    needs: [lint, test]
+    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.build_image.outputs.image_uri }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: login_ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Ensure ECR Repository Exists
+        run: |
+          aws ecr describe-repositories --repository-names "${{ env.ECR_REPOSITORY }}" >/dev/null 2>&1 || \
+          aws ecr create-repository \
+          --repository-name "${{ env.ECR_REPOSITORY }}" \
+          --tags "Key=StudentSuffix,Value=${{ env.STUDENT_SUFFIX }}"
+      - id: build_image
+        env:
+          REGISTRY: ${{ steps.login_ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE_URI="$REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG"
+          LATEST_URI="$REGISTRY/${{ env.ECR_REPOSITORY }}:latest"
+          docker build -t "$IMAGE_URI" -t "$LATEST_URI" .
+          docker push "$IMAGE_URI"
+          docker push "$LATEST_URI"
+          echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+  deploy:
+    name: Deploy to ECS on EC2
+    needs: build_and_push
+    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Run Deployment Script
+        env:
+          STUDENT_SUFFIX: ${{ env.STUDENT_SUFFIX }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          IMAGE_URI: ${{ needs.build_and_push.outputs.image_uri }}
+        run: bash scripts/deploy.sh
