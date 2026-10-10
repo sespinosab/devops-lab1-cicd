@@ -28,22 +28,4 @@ jobs:
       - name: Execute destroy script
         run: bash ./scripts/destroy.sh
 
-      - name: Delete ECS service
-        run: |
-          aws ecs delete-service \
-            --cluster "cluster-${STUDENT_SUFFIX}" \
-            --service "service-greeting-${STUDENT_SUFFIX}" \
-            --force
-
-      - name: Wait for ECS service deletion
-        run: |
-          aws ecs wait services-inactive \
-            --cluster "cluster-${STUDENT_SUFFIX}" \
-            --service "service-greeting-${STUDENT_SUFFIX}" \
-
-      - name: Delete ECR image
-        run: |
-          aws ecr batch-delete-image \
-            --repository-name "$ECR_REPOSITORY" \
-            --image-ids imageTag=latest
 
