@@ -31,15 +31,15 @@ jobs:
       - name: Delete ECS service
         run: |
           aws ecs delete-service \
-            --cluster "greeting-${STUDENT_SUFFIX}" \
-            --service "greeting-${STUDENT_SUFFIX}" \
+            --cluster "cluster-${STUDENT_SUFFIX}" \
+            --service "service-greeting-${STUDENT_SUFFIX}" \
             --force
 
       - name: Wait for ECS service deletion
         run: |
           aws ecs wait services-inactive \
-            --cluster "greeting-${STUDENT_SUFFIX}" \
-            --services "greeting-${STUDENT_SUFFIX}"
+            --cluster "cluster-${STUDENT_SUFFIX}" \
+            --service "service-greeting-${STUDENT_SUFFIX}" \
 
       - name: Delete ECR image
         run: |
